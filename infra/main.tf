@@ -142,7 +142,7 @@ data "archive_file" "lambda_zip" {
 
 resource "aws_lambda_function" "converter_worker" {
   filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "pj-kmuai-01-doc-converter-worker"
+  function_name    = "kmuai-01-doc-converter-worker"
   role             = local.lab_role_arn
   handler          = "index.handler"
   runtime          = "nodejs18.x"
@@ -173,7 +173,7 @@ data "archive_file" "deployer_zip" {
 
 resource "aws_lambda_function" "git_deployer" {
   filename         = data.archive_file.deployer_zip.output_path
-  function_name    = "pj-kmuai-01-git-deployer"
+  function_name    = "kmuai-01-git-deployer"
   role             = local.lab_role_arn
   handler          = "index.handler"
   runtime          = "nodejs18.x"
