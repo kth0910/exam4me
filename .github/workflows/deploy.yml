@@ -1,0 +1,36 @@
+name: AWS GitOps Deployment (Keyless)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write   # OIDC 연동에 필수 권한
+  contents: read    # 코드 읽기 권한
+
+jobs:
+  deploy:
+    name: Deploy Core Infrastructure & Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 1. AWS OIDC 연동을 통한 임시 토큰 획득 (Access Key가 필요 없음)
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          # TODO: AWS IAM에서 생성한 OIDC Role ARN을 아래에 기입하십시오.
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsWorkflowRole
+          aws-region: ap-northeast-2
+
+      # 2. Terraform 설정 및 프로비저닝 (9개 AWS 서비스 배포)
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Init & Apply
+        run: |
+          cd infra
+          terraform init
+          terraform apply -auto-approve

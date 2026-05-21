@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam4Me - 서비스 준비 중</title>
+    <style>
+        :root {
+            --primary: #1A365D;
+            --accent: #3182CE;
+            --bg: #F7FAFC;
+            --text: #2D3748;
+        }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            padding: 40px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        }
+        h1 {
+            color: var(--primary);
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #718096;
+            margin-bottom: 2rem;
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #E2E8F0;
+            border-top: 5px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 2rem;
+        }
+        .badge {
+            background-color: #EBF8FF;
+            color: var(--accent);
+            padding: 8px 16px;
+            border-radius: 9999px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 1.5rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="badge">AWS Amplify GitOps Pipeline Connected</div>
+        <div class="spinner"></div>
+        <h1>Exam4Me 서비스 준비 중</h1>
+        <p>
+            현재 백엔드 인프라 연동이 성공적으로 진행 중이며,<br>
+            디자이너의 맞춤형 UI/UX 디자인 시안을 반영하고 있습니다.<br>
+            잠시만 기다려 주시면 멋진 서비스로 찾아뵙겠습니다.
+        </p>
+    </div>
+</body>
+</html>
