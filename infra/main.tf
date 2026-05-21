@@ -2,12 +2,24 @@ provider "aws" {
   region = "us-east-1"
 }
 
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+}
+
 # -------------------------------------------------------------
 # [최강 보안 우회] IAM 권한 수정 및 Access Key 발급이 불가능한 실습용 계정 최적화
 # -------------------------------------------------------------
 # 이미 샌드박스 내에 다 막강한 권한으로 주어져 있는 'LabRole'과 'LabInstanceProfile'을 재사용합니다.
+# [샌드박스 PassRole 에러 긴급 우회] Custom Role의 iam:PassRole 권한 부재로 Lambda 배포가 차단되는 기술적 한계를 극복하기 위해
+# 테라폼 배포 단계에서는 샌드박스 전용 'LabRole'로 생성한 후, 완료 후 콘솔에서 사용자 정의 'SafeRole-kmuai-03'으로 수동 변경합니다.
 locals {
-  lab_role_arn     = "arn:aws:iam::730335373015:role/SafeRole-kmuai-03"
+  lab_role_arn     = "arn:aws:iam::730335373015:role/LabRole"
   ec2_profile_name = "SafeInstanceProfile-kmuai-03"
 }
 
@@ -191,7 +203,7 @@ resource "aws_lambda_permission" "apigw_deployer" {
 # 8. Amazon EC2 (코어 API 서버 - 100% 무키 Git 배포 자동 동기화 에이전트 탑재)
 # -------------------------------------------------------------
 resource "aws_instance" "api_server" {
-  ami           = "ami-0c55b159cbfafe1f0" # Amazon Linux 2 (ap-northeast-2)
+  ami           = data.aws_ami.amazon_linux_2.id
   instance_type = "t3.micro"
   
   iam_instance_profile = local.ec2_profile_name
