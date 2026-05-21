@@ -17,16 +17,37 @@ locals {
 resource "aws_s3_bucket" "raw_bucket" {
   bucket        = "pj-kmuai-01-exam4me-raw-files"
   force_destroy = true
+
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 resource "aws_s3_bucket" "converted_bucket" {
   bucket        = "pj-kmuai-01-exam4me-converted-files"
   force_destroy = true
+
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 resource "aws_s3_bucket" "frontend_builds" {
   bucket        = "pj-kmuai-01-exam4me-frontend-builds"
   force_destroy = true
+
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 # -------------------------------------------------------------
@@ -48,6 +69,13 @@ resource "aws_dynamodb_table" "status_cache" {
   attribute {
     name = "pk"
     type = "S"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
   }
 }
 
