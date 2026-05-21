@@ -1,0 +1,10 @@
+{
+  "name": "exam4me-backend-deployer",
+  "version": "1.0.0",
+  "description": "Keyless GitOps Deployer Lambda",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-lambda": "^3.300.0",
+    "@aws-sdk/client-s3": "^3.300.0"
+  }
+}

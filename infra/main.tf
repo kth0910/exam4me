@@ -3,7 +3,19 @@ provider "aws" {
 }
 
 # -------------------------------------------------------------
-# 1. Amazon S3 (교육 자료 원본 및 가공물 보관소)
+# [최강 보안 우회] IAM 권한 수정 및 Access Key 발급이 불가능한 실습용 계정 최적화
+# -------------------------------------------------------------
+# 이미 샌드박스 내에 다 막강한 권한으로 주어져 있는 'LabRole'과 'LabInstanceProfile'을 재사용합니다.
+data "aws_iam_role" "existing_lab_role" {
+  name = "LabRole"
+}
+
+data "aws_iam_instance_profile" "existing_ec2_profile" {
+  name = "LabInstanceProfile"
+}
+
+# -------------------------------------------------------------
+# 1. Amazon S3 (자료 보관소 및 프론트엔드/백엔드 공용 빌드 버킷)
 # -------------------------------------------------------------
 resource "aws_s3_bucket" "raw_bucket" {
   bucket        = "exam4me-raw-files"
@@ -12,6 +24,11 @@ resource "aws_s3_bucket" "raw_bucket" {
 
 resource "aws_s3_bucket" "converted_bucket" {
   bucket        = "exam4me-converted-files"
+  force_destroy = true
+}
+
+resource "aws_s3_bucket" "frontend_builds" {
+  bucket        = "exam4me-frontend-builds"
   force_destroy = true
 }
 
@@ -24,7 +41,7 @@ resource "aws_sqs_queue" "conversion_queue" {
 }
 
 # -------------------------------------------------------------
-# 3. Amazon DynamoDB (고속 작업 상태 캐시 및 메타데이터 캐시)
+# 3. Amazon DynamoDB (고속 작업 상태 캐시)
 # -------------------------------------------------------------
 resource "aws_dynamodb_table" "status_cache" {
   name         = "platform-status-cache"
@@ -38,7 +55,7 @@ resource "aws_dynamodb_table" "status_cache" {
 }
 
 # -------------------------------------------------------------
-# 4. Amazon RDS (관계형 데이터베이스 - 유저 마케팅 정보 & 커뮤니티 데이터)
+# 4. Amazon RDS (관계형 데이터베이스)
 # -------------------------------------------------------------
 resource "aws_db_instance" "core_db" {
   allocated_storage   = 20
@@ -52,7 +69,7 @@ resource "aws_db_instance" "core_db" {
 }
 
 # -------------------------------------------------------------
-# 5. Amazon SNS (오류 피드백 알림 이메일 발송 채널)
+# 5. Amazon SNS (오류 피드백 알림 채널)
 # -------------------------------------------------------------
 resource "aws_sns_topic" "feedback_topic" {
   name = "feedback-resolved-topic"
@@ -70,7 +87,7 @@ data "archive_file" "lambda_zip" {
 resource "aws_lambda_function" "converter_worker" {
   filename         = data.archive_file.lambda_zip.output_path
   function_name    = "doc-converter-worker"
-  role             = aws_iam_role.lambda_role.arn
+  role             = data.aws_iam_role.existing_lab_role.arn
   handler          = "index.handler"
   runtime          = "nodejs18.x"
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
@@ -83,7 +100,6 @@ resource "aws_lambda_function" "converter_worker" {
   }
 }
 
-# Lambda SQS 이벤트 맵핑 (큐에 메시지 인입 시 람다 즉각 트리거)
 resource "aws_lambda_event_source_mapping" "sqs_trigger" {
   event_source_arn = aws_sqs_queue.conversion_queue.arn
   function_name    = aws_lambda_function.converter_worker.arn
@@ -91,25 +107,59 @@ resource "aws_lambda_event_source_mapping" "sqs_trigger" {
 }
 
 # -------------------------------------------------------------
-# 7. Amazon EC2 (코어 API 서버 - 24시간 가동 웹 앱)
+# 7. AWS Lambda (100% 무키 GitOps 배포 중계기 추가)
+# -------------------------------------------------------------
+data "archive_file" "deployer_zip" {
+  type        = "zip"
+  source_dir  = "../backend-deployer"
+  output_path = "deployer_function.zip"
+}
+
+resource "aws_lambda_function" "git_deployer" {
+  filename         = data.archive_file.deployer_zip.output_path
+  function_name    = "git-deployer"
+  role             = data.aws_iam_role.existing_lab_role.arn
+  handler          = "index.handler"
+  runtime          = "nodejs18.x"
+  source_code_hash = data.archive_file.deployer_zip.output_base64sha256
+
+  environment {
+    variables = {
+      BUILD_BUCKET_NAME    = aws_s3_bucket.frontend_builds.bucket
+      WORKER_FUNCTION_NAME = aws_lambda_function.converter_worker.function_name
+      GITHUB_TOKEN         = "ghp_your_optional_github_token_here"
+    }
+  }
+}
+
+# Lambda Gateway 트리거용 권한 선언
+resource "aws_lambda_permission" "apigw_deployer" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.git_deployer.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*/deploy"
+}
+
+# -------------------------------------------------------------
+# 8. Amazon EC2 (코어 API 서버 - 100% 무키 Git 배포 자동 동기화 에이전트 탑재)
 # -------------------------------------------------------------
 resource "aws_instance" "api_server" {
-  ami           = "ami-0c55b159cbfafe1f0" # Amazon Linux 2 (ap-northeast-2 기준)
+  ami           = "ami-0c55b159cbfafe1f0" # Amazon Linux 2 (ap-northeast-2)
   instance_type = "t3.micro"
   
-  # EC2 자체에 다른 AWS 자원을 무키로 제어할 수 있는 IAM 역할 부여
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
+  iam_instance_profile = data.aws_iam_instance_profile.existing_ec2_profile.name
 
-  # 서버 부트스트랩 스크립트 (켜지는 즉시 Git에서 코드 받아 자동 실행)
+  # EC2 켜질때 기본 세팅 및 백그라운드 깃 동기화 데몬 구동 (Key가 불필요)
   user_data = <<-EOF
               #!/bin/bash
               sudo yum update -y
-              sudo yum install git nodejs -y
+              sudo yum install git nodejs unzip -y
               git clone https://github.com/[YOUR_GITHUB_ID]/exam4me-service.git /app
               cd /app/backend-api
               npm install
               
-              # 환경 변수 정의
+              # 1. API 서버 구동 환경 변수
               echo "PORT=80" >> .env
               echo "AWS_REGION=ap-northeast-2" >> .env
               echo "SQS_QUEUE_URL=${aws_sqs_queue.conversion_queue.url}" >> .env
@@ -118,6 +168,44 @@ resource "aws_instance" "api_server" {
               echo "SNS_TOPIC_ARN=${aws_sns_topic.feedback_topic.arn}" >> .env
               
               npm run start &
+              
+              # 2. 1분마다 S3의 최신 zip 파일 배포를 감시하는 무키 GitOps 동기화 스크립트 작성
+              cat << 'OUTER' > /usr/local/bin/sync-gitops.sh
+              #!/bin/bash
+              BUCKET="${aws_s3_bucket.frontend_builds.bucket}"
+              LOCAL_DIR="/app"
+              
+              # S3의 최신 코드 MD5 헤더 대조
+              LATEST_HASH=$(aws s3api head-object --bucket $BUCKET --key latest-source.zip --query ETag --output text 2>/dev/null || echo "none")
+              LAST_KNOWN_HASH=$(cat /var/tmp/last-gitops-hash.txt 2>/dev/null || echo "none")
+              
+              if [ "$LATEST_HASH" != "$LAST_KNOWN_HASH" ] && [ "$LATEST_HASH" != "none" ]; then
+                  echo "🚀 최신 백엔드 코드 감지됨! 배포 업데이트 중..."
+                  aws s3 cp s3://$BUCKET/latest-source.zip /var/tmp/latest-source.zip
+                  
+                  # 무중단 압축 해제 및 EC2 백엔드 리스타트
+                  unzip -o /var/tmp/latest-source.zip -d /var/tmp/extracted-source
+                  cp -rf /var/tmp/extracted-source/*/backend-api/* $LOCAL_DIR/
+                  
+                  cd $LOCAL_DIR
+                  npm install
+                  
+                  # 기존 API Node 프로세스 리스타트
+                  PID=$(lsof -t -i:80)
+                  if [ ! -z "$PID" ]; then
+                      kill -9 $PID
+                  fi
+                  npm run start &
+                  
+                  echo "$LATEST_HASH" > /var/tmp/last-gitops-hash.txt
+                  echo "🎉 EC2 백엔드 API 무키 자동 업데이트 완료!"
+              fi
+              OUTER
+
+              chmod +x /usr/local/bin/sync-gitops.sh
+              
+              # 크론탭에 1분 주기 등록하여 무인 기동
+              echo "* * * * * /usr/local/bin/sync-gitops.sh >> /var/log/sync-gitops.log 2>&1" | crontab -
               EOF
 
   tags = {
@@ -126,173 +214,43 @@ resource "aws_instance" "api_server" {
 }
 
 # -------------------------------------------------------------
-# 8. Amazon API Gateway (프론트엔드 API 단일 접점)
+# 9. Amazon API Gateway (API Endpoint 및 배포 중계 웹훅 연동)
 # -------------------------------------------------------------
 resource "aws_apigatewayv2_api" "http_api" {
   name          = "exam4me-api-gateway"
   protocol_type = "HTTP"
 }
 
+# GitHub Webhook 수신을 위한 /deploy 경로 라우팅
+resource "aws_apigatewayv2_integration" "deploy_integration" {
+  api_id           = aws_apigatewayv2_api.http_api.id
+  integration_type = "AWS_PROXY"
+  integration_uri  = aws_lambda_function.git_deployer.arn
+}
+
+resource "aws_apigatewayv2_route" "deploy_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "POST /deploy"
+  target    = "integrations/${aws_apigatewayv2_integration.deploy_integration.id}"
+}
+
+resource "aws_apigatewayv2_stage" "default_stage" {
+  api_id      = aws_apigatewayv2_api.http_api.id
+  name        = "$default"
+  auto_deploy = true
+}
+
 # -------------------------------------------------------------
-# 9. AWS Amplify (프론트엔드 GitHub 웹훅 연동 호스팅)
+# 10. AWS Amplify (OAuth 키 발급이 불필요한 웹 콘솔 GitHub 직접 바인딩용 템플릿)
 # -------------------------------------------------------------
 resource "aws_amplify_app" "frontend" {
   name       = "exam4me-frontend"
   repository = "https://github.com/[YOUR_GITHUB_ID]/exam4me-service"
-  
-  # GitHub Personal Access Token을 AWS 보안 정보 스토어 등에 임시 저장하여 인증
-  oauth_token = "ghp_your_temporary_github_token_here_if_applicable"
-
-  build_spec = <<-EOF
-    version: 1
-    frontend:
-      phases:
-        build:
-          commands:
-            - echo "Deploying static UI/UX build..."
-      artifacts:
-        baseDirectory: frontend
-        files:
-          - '**/*'
-      cache:
-        paths: []
-  EOF
 }
 
 resource "aws_amplify_branch" "main" {
   app_id      = aws_amplify_app.frontend.id
   branch_name = "main"
-}
-
-# -------------------------------------------------------------
-# [부속 보안 및 권한 설정 - IAM 역할]
-# -------------------------------------------------------------
-resource "aws_iam_role" "lambda_role" {
-  name = "exam4me-lambda-execution-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_logs" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# Lambda용 추가 권한 (SQS 수신, S3 및 DynamoDB 쓰기 권한)
-resource "aws_iam_policy" "lambda_custom_policy" {
-  name = "exam4me-lambda-custom-policy"
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes"
-        ]
-        Resource = aws_sqs_queue.conversion_queue.arn
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:PutItem",
-          "dynamodb:GetItem"
-        ]
-        Resource = aws_dynamodb_table.status_cache.arn
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_custom" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_custom_policy.arn
-}
-
-resource "aws_iam_role" "ec2_role" {
-  name = "exam4me-ec2-execution-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-}
-
-# EC2 권한 (S3 URL 발급, SQS 전송, DynamoDB 조회, SNS 발송 권한)
-resource "aws_iam_policy" "ec2_custom_policy" {
-  name = "exam4me-ec2-custom-policy"
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:PutObject",
-          "s3:GetObject"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "sqs:SendMessage"
-        ]
-        Resource = aws_sqs_queue.conversion_queue.arn
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem"
-        ]
-        Resource = aws_dynamodb_table.status_cache.arn
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "sns:Publish"
-        ]
-        Resource = aws_sns_topic.feedback_topic.arn
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "ec2_custom" {
-  role       = aws_iam_role.ec2_role.name
-  policy_arn = aws_iam_policy.ec2_custom_policy.arn
-}
-
-resource "aws_iam_instance_profile" "ec2_profile" {
-  name = "exam4me-ec2-instance-profile"
-  role = aws_iam_role.ec2_role.name
 }
 
 # -------------------------------------------------------------
