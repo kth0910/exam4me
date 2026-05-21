@@ -9,23 +9,23 @@
 ```mermaid
 graph TD
     %% GitHub Push
-    Dev[개발자 / 디자이너] -->|1. git push| Git[GitHub Repository]
+    Dev["개발자 / 디자이너"] -->|"1. git push"| Git["GitHub Repository"]
     
     %% Amplify Flow (FrontEnd)
-    Git -->|Push 감지 즉시 자동 갱신| Amplify[AWS Amplify: GitHub 로그인 직접 연동]
-    Amplify -->|실시간 프론트엔드 배포 완료| User[사용자 브라우저]
+    Git -->|"Push 감지 즉시 자동 갱신"| Amplify["AWS Amplify: GitHub 로그인 직접 연동"]
+    Amplify -->|"실시간 프론트엔드 배포 완료"| User["사용자 브라우저"]
     
     %% Webhook Flow (BackEnd)
-    Git -->|2. Webhook POST 전송 (Key 필요 없음)| APIGW[AWS API Gateway]
+    Git -->|"2. Webhook POST 전송 (Key 필요 없음)"| APIGW["AWS API Gateway"]
     
-    subgraph AWS 샌드박스 (100% 무키 & LabRole 활용)
-        APIGW -->|3. 트리거| Deployer[배포 중계 Lambda: git-deployer]
-        Deployer -->|4. GitHub 최신 소스 zip 다운로드| Deployer
-        Deployer -->|5. S3 버킷에 zip 적재| S3[Amazon S3: 빌드 스토리지]
-        Deployer -->|6. 워커 Lambda 코드 즉시 배포| Worker[Lambda: 문서 변환 워커]
+    subgraph sandbox ["AWS 샌드박스 (100% 무키 & LabRole 활용)"]
+        APIGW -->|"3. 트리거"| Deployer["배포 중계 Lambda: git-deployer"]
+        Deployer -->|"4. GitHub 최신 소스 zip 다운로드"| Deployer
+        Deployer -->|"5. S3 버킷에 zip 적재"| S3["Amazon S3: 빌드 스토리지"]
+        Deployer -->|"6. 워커 Lambda 코드 즉시 배포"| Worker["Lambda: 문서 변환 워커"]
         
-        S3 -->|7. 1분 주기 무키 감시 동기화| EC2[EC2: API Server]
-        EC2 -->|8. 최신 코드 자동 압축 해제 및 프로세스 재기동| EC2
+        S3 -->|"7. 1분 주기 무키 감시 동기화"| EC2["EC2: API Server"]
+        EC2 -->|"8. 최신 코드 자동 압축 해제 및 프로세스 재기동"| EC2
     end
 ```
 
