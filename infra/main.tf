@@ -1,5 +1,5 @@
 provider "aws" {
-  region = "ap-northeast-2"
+  region = "us-east-1"
 }
 
 # -------------------------------------------------------------
@@ -7,11 +7,11 @@ provider "aws" {
 # -------------------------------------------------------------
 # 이미 샌드박스 내에 다 막강한 권한으로 주어져 있는 'LabRole'과 'LabInstanceProfile'을 재사용합니다.
 data "aws_iam_role" "existing_lab_role" {
-  name = "LabRole"
+  name = "SafeRole-kmuai-03"
 }
 
 data "aws_iam_instance_profile" "existing_ec2_profile" {
-  name = "LabInstanceProfile"
+  name = "SafeInstanceProfile-kmuai-03"
 }
 
 # -------------------------------------------------------------
