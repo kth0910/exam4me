@@ -7,8 +7,8 @@ provider "aws" {
 # -------------------------------------------------------------
 # 이미 샌드박스 내에 다 막강한 권한으로 주어져 있는 'LabRole'과 'LabInstanceProfile'을 재사용합니다.
 locals {
-  lab_role_arn     = "arn:aws:iam::730335373015:role/SafeRole-kmuai-03"
-  ec2_profile_name = "SafeInstanceProfile-kmuai-03"
+  lab_role_arn     = "arn:aws:iam::730335373015:role/SafeRole-kmuai-01"
+  ec2_profile_name = "SafeInstanceProfile-kmuai-01"
 }
 
 # -------------------------------------------------------------
@@ -63,6 +63,13 @@ resource "aws_db_instance" "core_db" {
   username            = "admin"
   password            = "exam4meSecurePassword2026!"
   skip_final_snapshot = true
+
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 # -------------------------------------------------------------
