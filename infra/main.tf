@@ -6,12 +6,9 @@ provider "aws" {
 # [최강 보안 우회] IAM 권한 수정 및 Access Key 발급이 불가능한 실습용 계정 최적화
 # -------------------------------------------------------------
 # 이미 샌드박스 내에 다 막강한 권한으로 주어져 있는 'LabRole'과 'LabInstanceProfile'을 재사용합니다.
-data "aws_iam_role" "existing_lab_role" {
-  name = "SafeRole-kmuai-03"
-}
-
-data "aws_iam_instance_profile" "existing_ec2_profile" {
-  name = "SafeInstanceProfile-kmuai-03"
+locals {
+  lab_role_arn     = "arn:aws:iam::730335373015:role/SafeRole-kmuai-03"
+  ec2_profile_name = "SafeInstanceProfile-kmuai-03"
 }
 
 # -------------------------------------------------------------
@@ -87,7 +84,7 @@ data "archive_file" "lambda_zip" {
 resource "aws_lambda_function" "converter_worker" {
   filename         = data.archive_file.lambda_zip.output_path
   function_name    = "doc-converter-worker"
-  role             = data.aws_iam_role.existing_lab_role.arn
+  role             = local.lab_role_arn
   handler          = "index.handler"
   runtime          = "nodejs18.x"
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
@@ -118,7 +115,7 @@ data "archive_file" "deployer_zip" {
 resource "aws_lambda_function" "git_deployer" {
   filename         = data.archive_file.deployer_zip.output_path
   function_name    = "git-deployer"
-  role             = data.aws_iam_role.existing_lab_role.arn
+  role             = local.lab_role_arn
   handler          = "index.handler"
   runtime          = "nodejs18.x"
   source_code_hash = data.archive_file.deployer_zip.output_base64sha256
@@ -148,7 +145,7 @@ resource "aws_instance" "api_server" {
   ami           = "ami-0c55b159cbfafe1f0" # Amazon Linux 2 (ap-northeast-2)
   instance_type = "t3.micro"
   
-  iam_instance_profile = data.aws_iam_instance_profile.existing_ec2_profile.name
+  iam_instance_profile = local.ec2_profile_name
 
   # EC2 켜질때 기본 세팅 및 백그라운드 깃 동기화 데몬 구동 (Key가 불필요)
   user_data = <<-EOF
