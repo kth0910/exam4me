@@ -15,17 +15,17 @@ locals {
 # 1. Amazon S3 (자료 보관소 및 프론트엔드/백엔드 공용 빌드 버킷)
 # -------------------------------------------------------------
 resource "aws_s3_bucket" "raw_bucket" {
-  bucket        = "exam4me-raw-files"
+  bucket        = "pj-kmuai-01-exam4me-raw-files"
   force_destroy = true
 }
 
 resource "aws_s3_bucket" "converted_bucket" {
-  bucket        = "exam4me-converted-files"
+  bucket        = "pj-kmuai-01-exam4me-converted-files"
   force_destroy = true
 }
 
 resource "aws_s3_bucket" "frontend_builds" {
-  bucket        = "exam4me-frontend-builds"
+  bucket        = "pj-kmuai-01-exam4me-frontend-builds"
   force_destroy = true
 }
 
@@ -33,7 +33,7 @@ resource "aws_s3_bucket" "frontend_builds" {
 # 2. Amazon SQS (비동기 처리 버퍼용 큐)
 # -------------------------------------------------------------
 resource "aws_sqs_queue" "conversion_queue" {
-  name                      = "doc-conversion-queue"
+  name                      = "pj-kmuai-01-doc-conversion-queue"
   message_retention_seconds = 86400
 }
 
@@ -41,7 +41,7 @@ resource "aws_sqs_queue" "conversion_queue" {
 # 3. Amazon DynamoDB (고속 작업 상태 캐시)
 # -------------------------------------------------------------
 resource "aws_dynamodb_table" "status_cache" {
-  name         = "platform-status-cache"
+  name         = "pj-kmuai-01-platform-status-cache"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "pk"
 
@@ -69,7 +69,7 @@ resource "aws_db_instance" "core_db" {
 # 5. Amazon SNS (오류 피드백 알림 채널)
 # -------------------------------------------------------------
 resource "aws_sns_topic" "feedback_topic" {
-  name = "feedback-resolved-topic"
+  name = "pj-kmuai-01-feedback-resolved-topic"
 }
 
 # -------------------------------------------------------------
@@ -83,7 +83,7 @@ data "archive_file" "lambda_zip" {
 
 resource "aws_lambda_function" "converter_worker" {
   filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "doc-converter-worker"
+  function_name    = "pj-kmuai-01-doc-converter-worker"
   role             = local.lab_role_arn
   handler          = "index.handler"
   runtime          = "nodejs18.x"
@@ -114,7 +114,7 @@ data "archive_file" "deployer_zip" {
 
 resource "aws_lambda_function" "git_deployer" {
   filename         = data.archive_file.deployer_zip.output_path
-  function_name    = "git-deployer"
+  function_name    = "pj-kmuai-01-git-deployer"
   role             = local.lab_role_arn
   handler          = "index.handler"
   runtime          = "nodejs18.x"
@@ -206,7 +206,7 @@ resource "aws_instance" "api_server" {
               EOF
 
   tags = {
-    Name = "exam4me-api-server"
+    Name = "pj-kmuai-01-exam4me-api-server"
   }
 }
 
@@ -214,7 +214,7 @@ resource "aws_instance" "api_server" {
 # 9. Amazon API Gateway (API Endpoint 및 배포 중계 웹훅 연동)
 # -------------------------------------------------------------
 resource "aws_apigatewayv2_api" "http_api" {
-  name          = "exam4me-api-gateway"
+  name          = "pj-kmuai-01-exam4me-api-gateway"
   protocol_type = "HTTP"
 }
 
@@ -241,14 +241,13 @@ resource "aws_apigatewayv2_stage" "default_stage" {
 # 10. AWS Amplify (OAuth 키 발급이 불필요한 웹 콘솔 GitHub 직접 바인딩용 템플릿)
 # -------------------------------------------------------------
 resource "aws_amplify_app" "frontend" {
-  name       = "exam4me-frontend"
-  repository = "https://github.com/[YOUR_GITHUB_ID]/exam4me-service"
+  name       = "pj-kmuai-01-exam4me-frontend"
 }
 
-resource "aws_amplify_branch" "main" {
-  app_id      = aws_amplify_app.frontend.id
-  branch_name = "main"
-}
+# resource "aws_amplify_branch" "main" {
+#   app_id      = aws_amplify_app.frontend.id
+#   branch_name = "main"
+# }
 
 # -------------------------------------------------------------
 # 아웃풋 출력 (배포 완료 시 터미널 화면에 노출)
