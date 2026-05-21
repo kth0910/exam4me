@@ -7,15 +7,15 @@ provider "aws" {
 # -------------------------------------------------------------
 # 이미 샌드박스 내에 다 막강한 권한으로 주어져 있는 'LabRole'과 'LabInstanceProfile'을 재사용합니다.
 locals {
-  lab_role_arn     = "arn:aws:iam::730335373015:role/SafeRole-kmuai-01"
-  ec2_profile_name = "SafeInstanceProfile-kmuai-01"
+  lab_role_arn     = "arn:aws:iam::730335373015:role/SafeRole-kmuai-03"
+  ec2_profile_name = "SafeInstanceProfile-kmuai-03"
 }
 
 # -------------------------------------------------------------
 # 1. Amazon S3 (자료 보관소 및 프론트엔드/백엔드 공용 빌드 버킷)
 # -------------------------------------------------------------
 resource "aws_s3_bucket" "raw_bucket" {
-  bucket        = "pj-kmuai-01-exam4me-raw-files"
+  bucket        = "kmuai-03-exam4me-raw-files"
   force_destroy = true
 
   lifecycle {
@@ -27,7 +27,7 @@ resource "aws_s3_bucket" "raw_bucket" {
 }
 
 resource "aws_s3_bucket" "converted_bucket" {
-  bucket        = "pj-kmuai-01-exam4me-converted-files"
+  bucket        = "kmuai-03-exam4me-converted-files"
   force_destroy = true
 
   lifecycle {
@@ -39,7 +39,7 @@ resource "aws_s3_bucket" "converted_bucket" {
 }
 
 resource "aws_s3_bucket" "frontend_builds" {
-  bucket        = "pj-kmuai-01-exam4me-frontend-builds"
+  bucket        = "kmuai-03-exam4me-frontend-builds"
   force_destroy = true
 
   lifecycle {
@@ -54,15 +54,22 @@ resource "aws_s3_bucket" "frontend_builds" {
 # 2. Amazon SQS (비동기 처리 버퍼용 큐)
 # -------------------------------------------------------------
 resource "aws_sqs_queue" "conversion_queue" {
-  name                      = "pj-kmuai-01-doc-conversion-queue"
+  name                      = "kmuai-03-doc-conversion-queue"
   message_retention_seconds = 86400
+
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 # -------------------------------------------------------------
 # 3. Amazon DynamoDB (고속 작업 상태 캐시)
 # -------------------------------------------------------------
 resource "aws_dynamodb_table" "status_cache" {
-  name         = "pj-kmuai-01-platform-status-cache"
+  name         = "kmuai-03-platform-status-cache"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "pk"
 
@@ -104,7 +111,14 @@ resource "aws_db_instance" "core_db" {
 # 5. Amazon SNS (오류 피드백 알림 채널)
 # -------------------------------------------------------------
 resource "aws_sns_topic" "feedback_topic" {
-  name = "pj-kmuai-01-feedback-resolved-topic"
+  name = "kmuai-03-feedback-resolved-topic"
+
+  lifecycle {
+    ignore_changes = [
+      tags,
+      tags_all
+    ]
+  }
 }
 
 # -------------------------------------------------------------
@@ -118,7 +132,7 @@ data "archive_file" "lambda_zip" {
 
 resource "aws_lambda_function" "converter_worker" {
   filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "pj-kmuai-01-doc-converter-worker"
+  function_name    = "kmuai-03-doc-converter-worker"
   role             = local.lab_role_arn
   handler          = "index.handler"
   runtime          = "nodejs18.x"
@@ -149,7 +163,7 @@ data "archive_file" "deployer_zip" {
 
 resource "aws_lambda_function" "git_deployer" {
   filename         = data.archive_file.deployer_zip.output_path
-  function_name    = "pj-kmuai-01-git-deployer"
+  function_name    = "kmuai-03-git-deployer"
   role             = local.lab_role_arn
   handler          = "index.handler"
   runtime          = "nodejs18.x"
@@ -241,7 +255,7 @@ resource "aws_instance" "api_server" {
               EOF
 
   tags = {
-    Name = "pj-kmuai-01-exam4me-api-server"
+    Name = "kmuai-03-exam4me-api-server"
   }
 }
 
@@ -249,7 +263,7 @@ resource "aws_instance" "api_server" {
 # 9. Amazon API Gateway (API Endpoint 및 배포 중계 웹훅 연동)
 # -------------------------------------------------------------
 resource "aws_apigatewayv2_api" "http_api" {
-  name          = "pj-kmuai-01-exam4me-api-gateway"
+  name          = "kmuai-03-exam4me-api-gateway"
   protocol_type = "HTTP"
 }
 
@@ -276,7 +290,7 @@ resource "aws_apigatewayv2_stage" "default_stage" {
 # 10. AWS Amplify (OAuth 키 발급이 불필요한 웹 콘솔 GitHub 직접 바인딩용 템플릿)
 # -------------------------------------------------------------
 resource "aws_amplify_app" "frontend" {
-  name       = "pj-kmuai-01-exam4me-frontend"
+  name       = "kmuai-03-exam4me-frontend"
 }
 
 # resource "aws_amplify_branch" "main" {
